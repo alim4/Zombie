@@ -7,6 +7,7 @@ import random
 SPACE = '  '
 EMPTY = '.'
 HEALTHY = 0 #occupied
+SICK = []
 
 '''
 a number greater than zero represents a diseased
@@ -56,19 +57,32 @@ def initGrid(cell_dim, density, disease):
     for x in range(0, cell_dim):
         for y in range(0, cell_dim):
             rnd = random.random()
+            # Birth chance
             if rnd < density:
-                grid[(x,y)] = HEALTHY
+                # Chance of init being diseased
+                if rnd < disease:
+                    grid[(x,y)] = SICK[0]
+                else:
+                    grid[(x,y)] = HEALTHY
             else:
                 grid[(x,y)] = EMPTY
-            # random.random() Return the next random floating point number in the range [0.0, 1.0).
-            # https://docs.python.org/2/library/random.html#module-random
-            # *make the cell occupied, if the random number is less than the density value.*
 
-        #...
     return grid
 
 def sim(grid_size, pop_density, disease, birth, spread, duration, mortality, days):
-    ''' Function performs the simulation for the number of days specified. '''
+    """ Function performs the simulation for the number of days specified.
+    :param grid_size: size of grid
+    :param pop_density: density of population
+    :param disease: chance for initial disease
+    :param birth: chance for birth
+    :param spread: chance for spread
+    :param duration: length of disease
+    :param mortality: chance that diseased cell dies at end of duration
+    :param days: days to run simulation
+    """
+    # populate sick range/duration
+    for day in range(1, duration+1):
+        SICK.append(day)
 
     grid = initGrid(grid_size, pop_density, disease)
 
@@ -95,7 +109,8 @@ def sim(grid_size, pop_density, disease, birth, spread, duration, mortality, day
 
         # Iterate over today's grid cells and compute tomorrow's grid cell contents.
         #...
-
+        for cell in grid:
+            new_grid = compute3x3Block(cell, grid, new_grid, birth, spread, duration, mortality)
 
         '''
         After you've built up your new grid (the state of the simulation at
@@ -117,7 +132,12 @@ def sim(grid_size, pop_density, disease, birth, spread, duration, mortality, day
         # print your grid
         printGrid(grid_size, grid, day)
 
-
+        # stop simulation if everyone dead or no disease left
+        # checks for presence of elements in SICK list in grid dict
+        # if list is empty then break
+        if not [i for i in SICK if i in grid.values()]:
+            print "ALL PEOPLE DEAD OR NO MORE DISEASE LEFT. SIMULATION OVER."
+            break
 
 def compute3x3Block(loc, grid, new_grid, birth_chance, spread_chance, disease_duration, mortality_rate):
     ''' Computes the next day's grid cells for 3 x 3 block of cells centered at loc. '''
@@ -126,10 +146,15 @@ def compute3x3Block(loc, grid, new_grid, birth_chance, spread_chance, disease_du
     # Two cases:
     # 1. Cells around cell @ loc are updated for *disease spread*
     # 2. Cell @ loc is updated depending on cells around it *birth chance*
-    for x in range(loc[0]-1,loc[0]+2,1):
-        for y in range(loc[1]-1,loc[1]+2,1):
-            if (x,y) != loc: # only look at cells around center cell
+    for x in range(loc[0]-1, loc[0]+2, 1):
+        for y in range(loc[1]-1, loc[1]+2, 1):
+            if (x,y) != loc:    # only look at cells around center cell
+                rnd = random.random()
                 try:
+                    if (rnd < birth_chance and
+                        grid[(x,y)] is HEALTHY and
+                        grid[loc] is EMPTY):
+                            new_grid[loc] = HEALTHY
                     '''
                     Birth chance:
 
@@ -140,13 +165,15 @@ def compute3x3Block(loc, grid, new_grid, birth_chance, spread_chance, disease_du
                     if a square has four healthy neighbors (remember, an empty cell is neither healthy nor diseased),
                     it has four chances to become occupied itself.
                     '''
-
-		    #...
-
-                except:
-                    pass # we're at a corner or edge
+                except LookupError:
+                    pass    # we're at a corner or edge
 
                 try:
+                    if (rnd < spread_chance and
+                        grid[loc] is HEALTHY and
+                        grid[(x,y)] in SICK):
+                            new_grid[loc] = SICK[0]
+
                     '''
                     Spread chance:
 
@@ -156,11 +183,8 @@ def compute3x3Block(loc, grid, new_grid, birth_chance, spread_chance, disease_du
                     the cell is sick. If a cell has four healthy neighbors, any number of
                     them (from 0 to 4) could become infected in a given turn.
                     '''
-
-		    #...
-
-                except:
-                    pass # we're at a corner or edge
+                except LookupError:
+                    pass    # we're at a corner or edge
 
     '''
     Disease duration:
@@ -178,10 +202,23 @@ def compute3x3Block(loc, grid, new_grid, birth_chance, spread_chance, disease_du
     '''
 
     #Now, update the cell @ loc for the following...
+    #print "grid[loc]: {0}  --- SICK: {1} --- Is in? {2}".format(grid[loc], SICK, grid[loc] in SICK)
+
+    if grid[loc] in SICK:
+        new_grid[loc] = grid[loc] + 1
+
+    if grid[loc] > disease_duration:
+        rnd = random.random()
+        if rnd < mortality_rate:
+            new_grid[loc] = HEALTHY
+        else:
+            new_grid[loc] = EMPTY
 
     #Determine if cell location will die or recover.
     #OR..
     #Increment diseased cell days being sick.
+
+    return grid
 
 
 def printGrid(cell_dim, grid, day):
@@ -194,15 +231,29 @@ def printGrid(cell_dim, grid, day):
             print grid.get((x,y)),
         print ""
 
+    numEmpty = 0
+    numHealthy = 0
+    numSick = 0
+
+    for cell in grid:
+        if grid[cell] is EMPTY:
+            numEmpty += 1
+        elif grid[cell] is HEALTHY:
+            numHealthy += 1
+        elif grid[cell] in SICK:
+            numSick += 1
+
+    print "Empty: {0:3} _ Healthy: {1:3} _ Sick: {2:3}".format(numEmpty, numHealthy, numSick)
+
 def main():
 
     '''
     When run stand alone, your program must call your sim function with the
     following parameters: 20, 0.15, 0.1, 0.1, 0.1, 3, 0.5, 500
+    sim(grid_size, pop_density, disease, birth, spread, duration, mortality, days):
     '''
 
-    sim(20, 0.15, 0.1, 0.1, 0.1, 3, 0.5, 2)
-
+    sim(20, 0.15, 0.1, 0.1, 0.1, 3, 0.5, 500)
 
 if __name__ == '__main__':
     main()
